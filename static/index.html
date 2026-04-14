@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-Drama Face Matcher</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f4f4f4;color:#1a1a1a;min-height:100vh}
+
+header{background:#fff;border-bottom:1px solid #e8e8e8;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+header h1{font-size:17px;font-weight:700}
+header p{font-size:12px;color:#999;margin-top:2px}
+#badge{font-size:12px;padding:5px 12px;border-radius:20px;font-weight:600;background:#fef3c7;color:#92400e;white-space:nowrap}
+#badge.ready{background:#d1fae5;color:#065f46}
+#badge.error{background:#fee2e2;color:#991b1b}
+
+main{max-width:900px;margin:28px auto;padding:0 16px;display:flex;flex-direction:column;gap:16px}
+
+.tabs{display:flex;gap:8px}
+.tab{padding:8px 18px;border-radius:8px;border:1px solid #ddd;background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:#666;transition:all .15s;font-family:inherit}
+.tab:hover{background:#f5f5f5}
+.tab.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+
+.card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:22px}
+
+/* upload zone */
+#uploadZone{border:2px dashed #ccc;border-radius:10px;padding:44px 20px;text-align:center;cursor:pointer;position:relative;transition:all .15s}
+#uploadZone:hover,#uploadZone.drag{border-color:#555;background:#fafafa}
+#uploadZone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+#uploadZone .ico{font-size:36px;display:block;margin-bottom:10px}
+#uploadZone .main-text{font-size:14px;color:#444;font-weight:500}
+#uploadZone .sub-text{font-size:12px;color:#aaa;margin-top:5px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 20px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid #ddd;background:#fff;color:#1a1a1a;transition:all .15s;font-family:inherit}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn.primary:hover{background:#333}
+.btn.red{color:#dc2626;border-color:#fca5a5}
+.btn.red:hover{background:#fef2f2}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center}
+
+/* notice */
+.notice{font-size:13px;padding:11px 15px;border-radius:8px;margin-bottom:12px;border:1px solid}
+.notice.warn{background:#fefce8;color:#854d0e;border-color:#fde047}
+.notice.err{background:#fef2f2;color:#991b1b;border-color:#fca5a5}
+.notice.ok{background:#f0fdf4;color:#166534;border-color:#86efac}
+
+/* results */
+#resultArea{display:none;margin-top:20px}
+.result-grid{display:grid;grid-template-columns:190px 1fr;gap:20px;align-items:start}
+@media(max-width:580px){.result-grid{grid-template-columns:1fr}}
+
+.you-box{text-align:center}
+.you-box img{width:100%;max-width:190px;border-radius:10px;border:1px solid #e8e8e8;display:block;margin:0 auto}
+.you-box .lbl{font-size:11px;color:#999;margin-top:7px;font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+
+.matches{display:flex;flex-direction:column;gap:10px}
+.mrow{display:flex;align-items:center;gap:12px;border:1px solid #e8e8e8;border-radius:10px;padding:11px;transition:border-color .15s}
+.mrow:hover{border-color:#bbb}
+.mrow.top{border-color:#1a1a1a;border-width:2px}
+.mrow .rnk{font-size:18px;font-weight:700;min-width:26px;text-align:center;color:#ccc}
+.mrow.top .rnk{color:#1a1a1a}
+.mthumb{width:68px;height:68px;border-radius:8px;object-fit:cover;border:1px solid #e8e8e8;flex-shrink:0;background:#f0f0f0;display:flex;align-items:center;justify-content:center;font-size:22px}
+.mthumb img{width:68px;height:68px;border-radius:8px;object-fit:cover}
+.minfo{flex:1;min-width:0}
+.mname{font-size:14px;font-weight:700}
+.mbar-wrap{margin-top:7px}
+.mbar-top{display:flex;justify-content:space-between;font-size:11px;color:#999;margin-bottom:3px}
+.mbar-track{height:6px;background:#f0f0f0;border-radius:99px;overflow:hidden}
+.mbar-fill{height:100%;border-radius:99px;background:#ccc;transition:width .55s ease}
+.mrow.top .mbar-fill{background:#1a1a1a}
+
+/* webcam */
+#wcamBox{display:none}
+#wcamBox.show{display:block}
+#wcamVideo{width:100%;max-width:480px;border-radius:10px;border:1px solid #e8e8e8;display:block}
+#wcamResults{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.wrow{display:flex;align-items:center;gap:10px;padding:9px;border-radius:8px;background:#f9f9f9}
+.wthumb{width:50px;height:50px;border-radius:6px;object-fit:cover;background:#e8e8e8;flex-shrink:0}
+.wname{font-size:13px;font-weight:700}
+.wscore{font-size:12px;color:#888}
+
+/* setup */
+.steps{display:flex;flex-direction:column;gap:7px;margin-bottom:16px}
+.step{display:flex;align-items:center;gap:10px;padding:9px 13px;background:#f9f9f9;border-radius:8px;font-size:13px;color:#555}
+.step .n{width:20px;height:20px;border-radius:50%;background:#ddd;color:#555;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+#setupLog{margin-top:12px;font-size:12px;color:#888;font-family:monospace;white-space:pre-wrap}
+
+.spinner{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;display:inline-block}
+.spinner.dark{border:2px solid #ddd;border-top-color:#555}
+@keyframes spin{to{transform:rotate(360deg)}}
+hr{border:none;border-top:1px solid #e8e8e8;margin-bottom:18px}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>🎬 K-Drama Face Matcher</h1>
+    <p>Find your most similar Korean drama actor</p>
+  </div>
+  <div id="badge">checking...</div>
+</header>
+
+<main>
+  <div id="noticeArea"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload',this)">Upload photo</button>
+    <button class="tab" onclick="switchTab('webcam',this)">Live webcam</button>
+    <button class="tab" onclick="switchTab('setup',this)">Setup</button>
+  </div>
+
+  <!-- UPLOAD TAB -->
+  <div id="tab-upload" class="card">
+    <div id="uploadZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <span class="ico">📷</span>
+      <div class="main-text">Drop your photo here or <strong>click to browse</strong></div>
+      <div class="sub-text">Works with any photo — selfie, portrait, any angle</div>
+    </div>
+    <div class="row" id="uploadActions" style="display:none">
+      <button class="btn primary" id="matchBtn" onclick="runMatch()">Find my match</button>
+      <button class="btn" onclick="resetUpload()">Clear</button>
+    </div>
+    <div id="resultArea">
+      <hr>
+      <div class="result-grid">
+        <div class="you-box">
+          <img id="youImg" src="" alt="Your photo">
+          <div class="lbl">Your photo</div>
+        </div>
+        <div class="matches" id="matchList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEBCAM TAB -->
+  <div id="tab-webcam" class="card" style="display:none">
+    <div id="wcamStart">
+      <p style="font-size:14px;color:#555;margin-bottom:14px">Point your camera at your face, then capture.</p>
+      <button class="btn primary" onclick="startCam()">Start camera</button>
+    </div>
+    <div id="wcamBox">
+      <video id="wcamVideo" autoplay playsinline muted></video>
+      <div class="row">
+        <button class="btn primary" id="capBtn" onclick="captureMatch()">Capture &amp; match</button>
+        <button class="btn red" onclick="stopCam()">Stop camera</button>
+      </div>
+      <div id="wcamResults"></div>
+    </div>
+  </div>
+
+  <!-- SETUP TAB -->
+  <div id="tab-setup" class="card" style="display:none">
+    <div class="steps">
+      <div class="step"><div class="n">1</div>Run <code>python collect_data.py</code> to download actor images</div>
+      <div class="step"><div class="n">2</div>Or manually add photos to <code>dataset/actors/Actor_Name/</code></div>
+      <div class="step"><div class="n">3</div>Click "Build database" below — then switch to Upload tab</div>
+    </div>
+    <button class="btn primary" id="buildBtn" onclick="buildDB()">Build database</button>
+    <div id="setupLog"></div>
+  </div>
+</main>
+
+<script>
+let selectedFile = null;
+let camStream    = null;
+let currentTab   = 'upload';
+
+// ── status ──────────────────────────────────────────────────
+async function checkStatus() {
+  try {
+    const d = await fetch('/status').then(r=>r.json());
+    const b = document.getElementById('badge');
+    if (d.db_ready) {
+      b.textContent = `Ready · ${d.actor_count} actors`;
+      b.className = 'ready';
+    } else {
+      b.textContent = 'No database';
+      b.className = 'error';
+      notice('No database found. Go to Setup tab → Build database.', 'warn');
+    }
+  } catch {
+    document.getElementById('badge').textContent = 'Server offline';
+    document.getElementById('badge').className = 'error';
+    notice('Cannot reach server. Make sure app.py is running.', 'err');
+  }
+}
+
+function notice(msg, type='warn') {
+  document.getElementById('noticeArea').innerHTML =
+    `<div class="notice ${type}">${msg}</div>`;
+}
+function clearNotice() { document.getElementById('noticeArea').innerHTML = ''; }
+
+// ── tabs ────────────────────────────────────────────────────
+function switchTab(name, btn) {
+  currentTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  ['upload','webcam','setup'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? '' : 'none';
+  });
+  if (name !== 'webcam') stopCam();
+}
+
+// ── upload ──────────────────────────────────────────────────
+const zone  = document.getElementById('uploadZone');
+const finput= document.getElementById('fileInput');
+
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+zone.addEventListener('dragleave',()=> zone.classList.remove('drag'));
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) pickFile(e.dataTransfer.files[0]);
+});
+finput.addEventListener('change', () => { if (finput.files[0]) pickFile(finput.files[0]); });
+
+function pickFile(f) {
+  selectedFile = f;
+  zone.querySelector('.ico').textContent = '✅';
+  zone.querySelector('.main-text').innerHTML = `<strong>${f.name}</strong>`;
+  zone.querySelector('.sub-text').textContent = (f.size/1024).toFixed(0)+' KB — click Find my match';
+  document.getElementById('uploadActions').style.display = 'flex';
+  document.getElementById('resultArea').style.display    = 'none';
+}
+
+function resetUpload() {
+  selectedFile = null; finput.value = '';
+  zone.querySelector('.ico').textContent = '📷';
+  zone.querySelector('.main-text').innerHTML = 'Drop your photo here or <strong>click to browse</strong>';
+  zone.querySelector('.sub-text').textContent = 'Works with any photo — selfie, portrait, any angle';
+  document.getElementById('uploadActions').style.display = 'none';
+  document.getElementById('resultArea').style.display    = 'none';
+}
+
+async function runMatch() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('matchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Analyzing...';
+  clearNotice();
+
+  const fd = new FormData();
+  fd.append('image', selectedFile);
+
+  try {
+    const r = await fetch('/match', {method:'POST', body:fd});
+    const d = await r.json();
+    if (d.error) { notice(d.error,'err'); return; }
+    if (!d.face_detected) notice('No face detected — used full image. Results may vary.','warn');
+    renderResults(d);
+  } catch(e) {
+    notice('Server error: '+e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Find my match';
+  }
+}
+
+function renderResults(d) {
+  document.getElementById('youImg').src = 'data:image/jpeg;base64,'+d.user_image;
+  document.getElementById('resultArea').style.display = 'block';
+  const list = document.getElementById('matchList');
+  list.innerHTML = '';
+  d.results.forEach((m,i) => {
+    const div = document.createElement('div');
+    div.className = 'mrow'+(i===0?' top':'');
+    const thumb = m.thumb
+      ? `<div class="mthumb"><img src="data:image/jpeg;base64,${m.thumb}" alt="${m.actor}"></div>`
+      : `<div class="mthumb">🎭</div>`;
+    div.innerHTML = `
+      <div class="rnk">${i+1}</div>
+      ${thumb}
+      <div class="minfo">
+        <div class="mname">${m.actor}</div>
+        <div class="mbar-wrap">
+          <div class="mbar-top"><span>Similarity</span><span>${m.score}%</span></div>
+          <div class="mbar-track"><div class="mbar-fill" style="width:0" data-v="${m.score}"></div></div>
+        </div>
+      </div>`;
+    list.appendChild(div);
+    setTimeout(()=>{ div.querySelector('.mbar-fill').style.width=m.score+'%'; }, 80+i*110);
+  });
+  document.getElementById('resultArea').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ── webcam ──────────────────────────────────────────────────
+async function startCam() {
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({video:{width:480,height:360}});
+    document.getElementById('wcamVideo').srcObject = camStream;
+    document.getElementById('wcamBox').classList.add('show');
+    document.getElementById('wcamStart').style.display = 'none';
+  } catch(e) { notice('Camera error: '+e.message,'err'); }
+}
+
+function stopCam() {
+  if (camStream) { camStream.getTracks().forEach(t=>t.stop()); camStream=null; }
+  document.getElementById('wcamBox').classList.remove('show');
+  document.getElementById('wcamStart').style.display = '';
+  document.getElementById('wcamResults').innerHTML = '';
+}
+
+async function captureMatch() {
+  const vid = document.getElementById('wcamVideo');
+  const btn = document.getElementById('capBtn');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>';
+  const c = document.createElement('canvas');
+  c.width=vid.videoWidth; c.height=vid.videoHeight;
+  c.getContext('2d').drawImage(vid,0,0);
+  try {
+    const r = await fetch('/webcam_frame',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({frame:c.toDataURL('image/jpeg',.88)})
+    });
+    const d = await r.json();
+    if(d.error){notice(d.error,'err');return;}
+    const box = document.getElementById('wcamResults');
+    box.innerHTML='';
+    d.results.forEach((m,i)=>{
+      const row=document.createElement('div');
+      row.className='wrow';
+      const th=m.thumb
+        ?`<img class="wthumb" src="data:image/jpeg;base64,${m.thumb}" alt="">`
+        :`<div class="wthumb" style="display:flex;align-items:center;justify-content:center;font-size:20px">🎭</div>`;
+      row.innerHTML=`${th}<div><div class="wname">${i+1}. ${m.actor}</div><div class="wscore">${m.score}% match</div></div>`;
+      box.appendChild(row);
+    });
+  } catch(e){notice('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Capture & match';}
+}
+
+// ── setup ───────────────────────────────────────────────────
+async function buildDB() {
+  const btn=document.getElementById('buildBtn');
+  const log=document.getElementById('setupLog');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Building...';
+  log.textContent='Running preprocessing + feature extraction...';
+  try {
+    const r=await fetch('/setup',{method:'POST'});
+    const d=await r.json();
+    if(d.error){log.textContent='❌ '+d.error;notice(d.error,'err');}
+    else{log.textContent='✅ '+d.message;notice('Done! Switch to Upload tab.','ok');checkStatus();}
+  } catch(e){log.textContent='❌ '+e.message;notice('Build failed: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Build database';}
+}
+
+checkStatus();
+</script>
+</body>
+</html>
